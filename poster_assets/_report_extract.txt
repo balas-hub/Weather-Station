@@ -1,0 +1,478 @@
+[0|Normal] AI-BASED LOCAL WEATHER FORECASTING AND PREDICTION SYSTEM USING ARDUINO UNO AND ESP32
+---
+[1|Normal] PROJECT REPORT
+---
+[2|Normal] Submitted by
+Balavignesh K – E0225002
+Sudharsan N – E0225010
+---
+[3|Normal] In partial fulfilment for the award of the degree of
+BACHELOR OF TECHNOLOGY
+in
+COMPUTER SCIENCE AND ENGINEERING
+(Cyber Security & Internet of Things)
+---
+[4|Normal] Sri Ramachandra Faculty of Engineering and Technology
+Sri Ramachandra Institute of Higher Education and Research, Porur, Chennai - 600116
+September, 2026
+---
+[8|Normal] BONAFIDE CERTIFICATE
+---
+[9|Normal] Certified that this project report “AI-Based Local Weather Forecasting and Prediction System Using Arduino Uno and ESP32” is the bonafide record of work done by “Balavignesh K – E0225002, Sudharsan N – E0225010” who carried out the project work under my supervision.
+---
+[14|Normal] Evaluation Date:
+---
+[17|Normal] INTERNAL EXAMINER 					EXTERNAL EXAMINER
+---
+[19|Normal] PLAGIARISM REPORT & AI DETECTION VERIFICATION
+---
+[20|Normal] AI Detection report:
+---
+[21|Normal] *% detected as AI
+---
+[22|Normal] *Low scores have a higher likelihood of false positives.
+---
+[25|Normal] ACKNOWLEDGEMENT
+---
+[26|Normal] I take this opportunity to express my gratitude to Prof. T. Ragunathan, Dean, Prof. A. Saravanan, Vice Dean, Sri Ramachandra Faculty of Engineering and Technology, SRIHER, for providing all the facilities to complete this project work successfully.
+
+I express my sincere gratitude to Dr. G. Jayanthi, Programme Coordinator, Department of Cybersecurity & Internet of Things, SRET, for their support and for providing the required facilities for carrying out this study.
+
+I wish to thank my faculty supervisor(s), Mr. Manoj Kumaran, Department of Cybersecurity and Internet of Things, SRET for extending help and encouragement throughout the project. Without his/her continuous guidance and persistent help, this project would not have been a success for us.
+
+I am grateful to all the members of the Sri Ramachandra Faculty of Engineering and Technology, my beloved parents and my friends for extending their support, which helped us to overcome obstacles in the study.
+---
+[28|Normal] TABLE OF CONTENTS
+---
+[30|Normal] ABSTRACT
+---
+[31|Normal] The reason behind the development of this AI-based weather prediction system is the failure of generic weather apps to catch localized microclimates and neighborhood rainfall storms. Standard mobile weather services pull their data from regional airports spanning 15 to 25 kilometers away, averaging out the acute barometric pressure drops and humidity spikes that signal approaching precipitation. Furthermore, most internet-reliant weather devices fail during intense storms when local cell towers cut out. Our system resolves this through a modular dual-microcontroller and edge-server architecture.
+
+An Arduino Uno acts as our dedicated sensor acquisition node, sampling ambient temperature and relative humidity from a DHT11 and precise atmospheric surface pressure from a Bosch BMP280 over I2C on a continuous 1-minute cycle. The Uno packages these clean readings into compact JSON telemetry and streams them across a direct UART serial bus to an ESP32 Wi-Fi gateway. The ESP32 forwards the telemetry packets directly over the local network via HTTP POST to a centralized Python Flask server running on a nearby laptop.
+
+On the edge server, the incoming data is buffered into an in-memory 24-hour circular history to extract dynamic rate-of-change indicators: the 3-hour pressure drop (ΔP_3h), 6-hour pressure drop (ΔP_6h), and 3-hour humidity change (ΔRH_3h). A trained Scikit-Learn machine learning model (SGDClassifier with log-loss) processes these normalized physical features in real-time to forecast upcoming weather (Clear, Cloudy, or Rain) and calculates calibrated rain probabilities. If severe rain odds exceed 60%, the server issues a JSON alert response, providing real-time predictive warnings. Most importantly, the system is continuously self-training: every 6 hours, the edge server verifies past forecasts against real outdoor observations and executes online incremental training (model.partial_fit()), automatically recalibrating model weights to track shifting seasonal weather patterns without requiring manual retraining.
+---
+[33|Normal] CHAPTER 1
+---
+[34|Normal] INTRODUCTION
+---
+[35|Normal] Need for the Study/Technology
+---
+[36|Normal] Accurate local weather prediction has been identified as a critical requirement for communities, small farms, and outdoor operations. Traditional forecasting relies on numerical weather prediction models run on macro-scale supercomputers. These models divide the atmosphere into large computational grids (15 to 25 km wide). While effective for broad synoptic fronts, they consistently fail to capture sharp, localized microclimate changes—such as rapid afternoon convective cloudbursts or sudden humidity spikes. Furthermore, modern connected weather stations depend entirely on third-party cloud platforms (e.g., AWS, Weather Underground). During severe storms, broadband internet and cellular communication towers frequently experience outages. When severe weather strikes, cloud-dependent systems become completely unusable. An intelligent edge-server architecture is essential so that environmental monitoring, machine learning inference, and predictive alerts function reliably within the local network.
+---
+[37|Normal] Applications
+---
+[38|Normal] • Smart Agriculture & Greenhouse Automation: Real-time microclimate monitoring to predict localized downpours hours ahead, allowing farmers to halt automated irrigation, protect drying crops, and deploy greenhouse covers.
+---
+[39|Normal] • Campus & Construction Site Safety: Autonomous weather nowcasting on school campuses and industrial open-air worksites, issuing early storm and precipitation warnings before rainstorms endanger workers or expensive electrical equipment.
+---
+[40|Normal] • Remote & Disaster-Prone Communities: Off-grid installations in remote rural regions where cellular networks are unreliable, providing independent local forecasting without recurring cloud subscription costs.
+---
+[41|Normal] • Smart Home Ventilation & Storm Prep: Direct integration with home automation hubs to trigger automated motorized window closers and rain shutters when the local barometric pressure plunges.
+---
+[42|Normal] Motivation behind the Study
+---
+[43|Normal] The drive behind this project is to apply accessible, low-cost Internet of Things (IoT) hardware and state-of-the-art Machine Learning toward an environmental challenge we encounter constantly. Basic DIY weather projects typically read only temperature and display it on an LCD. However, physical meteorology tells us that rain is governed by thermodynamic rate-of-change dynamics: rapid barometric drops (ΔP/Δt) and relative humidity saturation. Processing machine learning locally on a Python Flask edge server rather than costly cloud APIs provides ultra-low latency, zero recurring API expenses, and enables an automated online self-learning loop that continually improves as seasons change.
+---
+[47|Normal] Challenges to be addressed
+---
+[48|Normal] • Electrical & Microcontroller Interfacing: The Arduino Uno operates at 5V logic while the ESP32 operates at 3.3V logic. Establishing a direct, reliable UART link between Arduino Uno (Pins 10/11) and ESP32 (GPIO 16/17) with common ground ensures seamless bidirectional telemetry streaming without requiring extra active ICs.
+---
+[49|Normal] • Continuous Multi-Hour Feature Tracking: Raw instantaneous sensor numbers cannot predict future weather. The edge server must maintain an in-memory 24-hour circular buffer to calculate multi-hour pressure and humidity rate-of-change indicators without memory leaks.
+---
+[50|Normal] • Real-Time Edge Latency & Communication: Establishing an efficient JSON telemetry protocol between the ESP32 and Flask server that completes transmission, inference, and feedback actuation within milliseconds.
+---
+[51|Normal] • Dynamic Model Retraining (Preventing Concept Drift): Static machine learning models degrade when seasons transition. The system needed an automated mechanism to verify past predictions against real-world ground truth and update model weights incrementally on the fly.
+---
+[53|Normal] CHAPTER 2
+---
+[54|Normal] LITERATURE REVIEW
+---
+[55|Normal] 2.1 LITERATURE SURVEY
+---
+[56|Normal] While Kumar & Patel (2021) and Sharma et al. (2022) established that machine learning provides higher prediction accuracy than static equations, they relied on heavy desktop computers or cloud hosting. In cloud architectures, internet latency and service dropouts compromise early warning capabilities. Conversely, sensor-only nodes (David & Babu, 2023) lack predictive intelligence altogether. Our system synthesizes these insights by pairing a dedicated low-cost Arduino Uno sensor hub with an ESP32 Wi-Fi gateway that communicates directly with a local Python Flask server, achieving rapid inference and continuous online self-training without cloud reliance.
+---
+[58|Normal] 2.2 REVIEW OF EXISTING SYSTEM
+---
+[59|Normal] 1. Davis Vantage Pro2 (2017): Highly accurate commercial AWS used in agriculture and research. However, its immense cost ($800 to $1500) and reliance on proprietary data loggers prevent broad residential or DIY deployment. It also functions purely as a data logger without predictive machine learning.
+2. Ambient Weather WS-2902 (2019): A popular consumer station offering sleek dashboards. Its key vulnerability is complete dependency on external cloud servers; when severe weather cuts the home internet line, the system ceases to update precisely when needed.
+3. Smartphone Weather Apps (2021): Services like AccuWeather query satellite data over broad 15 to 25 km squares. They cannot sense the localized atmospheric pressure plunge occurring directly above a specific street or farm.
+4. Zambretti Barometer Rules (1915): A classic mechanical forecasting formula. While fully offline, its 64% real-world accuracy is insufficient because it relies on fixed rules and cannot account for humidity shifts or regional climate transitions.
+5. Raspberry Pi Weather Station (2020): Offers Python flexibility but draws substantial power (2.5W to 5W), generates internal heat that skews temperature readings, and costs upwards of $60 to $80.
+6. Netatmo Smart Weather (2018): Clean design, but costs over $180 and operates as a closed ecosystem without user-trainable machine learning or local buzzer triggers.
+---
+[61|Normal] CHAPTER 3
+---
+[62|Normal] PROBLEM STATEMENT AND OBJECTIVES
+---
+[63|Normal] 3.1 Problem Statement
+---
+[64|Normal] Traditional weather apps rely on generalized regional radars that fail to detect hyper-local storms, and modern smart weather gadgets depend completely on third-party cloud hosting which introduces latency, subscription fees, and catastrophic failures during stormy internet cutouts. Furthermore, hobbyist weather stations measure only raw instantaneous temperature and humidity, completely ignoring barometric pressure trends which are the primary physical indicators of approaching precipitation.
+Our system addresses this problem through an integrated edge-server IoT pipeline that combines:
+• Dedicated Sensor Hub: An Arduino Uno reading physical DHT11 and BMP280 sensors on a stable 1-minute cycle.
+• Wi-Fi Gateway: An ESP32 DevKit V1 that receives UART telemetry from the Uno and forwards JSON packets to a local server over Wi-Fi.
+• Edge AI & Self-Training Server: A Python Flask server hosting a Machine Learning model (SGDClassifier) that calculates 3h/6h pressure trends, delivers real-time predictions, and dynamically updates its own weights every 6 hours using observed ground truth (online incremental learning).
+---
+[65|Normal] 3.2 Objectives
+---
+[66|Normal] 3.2.1 Objective - 1: Multi-Sensor Acquisition & Interfacing
+● Proof of Concept: Sample temperature, relative humidity, and barometric pressure at a steady 1-minute rate.
+● Formulation of Methods: Interface DHT11 via digital GPIO and Bosch BMP280 via I2C with 16x oversampling.
+● Prototype Design: Program Arduino Uno (arduino_uno.ino) using non-blocking millis() to encode clean JSON telemetry.
+● Working Model: Arduino Uno transmitting JSON strings via UART serial bus.
+---
+[67|Normal] 3.2.2 Objective - 2: Edge Wi-Fi Gateway & Network Dispatching
+● Proof of Concept: Receive serial telemetry from Uno and transmit to a local Flask server over Wi-Fi.
+● Formulation of Methods: Implement direct HardwareSerial2 UART connection (Uno Pin 11 to ESP32 GPIO 16 RX2, Uno Pin 10 to ESP32 GPIO 17 TX2, common ground).
+● Prototype Design: Script esp32_gateway.ino to send HTTP POST requests and parse JSON prediction responses.
+● Working Model: ESP32 reliably receiving telemetry from Uno, dispatching HTTP POST packets, and logging alert statuses.
+---
+[68|Normal] 3.2.3 Objective - 3: Edge Server ML Engine & Continual Self-Learning
+● Proof of Concept: Execute machine learning inference on an edge server and update weights continuously.
+● Formulation of Methods: Train an SGDClassifier with log-loss on 3 years of meteorological data; engineer 3h/6h pressure trends.
+● Prototype Design: Script server.py in Python Flask with a 24-hour circular buffer and automated 6-hour partial_fit() ground-truth updates.
+● Working Model: Live dashboard at localhost:5000 providing real-time forecasts, rain odds, and continual model upgrades.
+---
+[69|Normal] 3.3 METHODOLOGY
+---
+[70|Normal] The underlying architecture is decentralized and edge-server based. The Arduino Uno serves as the frontline sensory node, interfacing with the DHT11 and BMP280. It streams JSON packets directly via UART (Pin 11 TX to GPIO 16 RX2) to the ESP32 with common ground reference. The ESP32 acts as an IoT Wi-Fi gateway that transmits HTTP POST packets over the local 2.4 GHz Wi-Fi network to the laptop edge server. The Python Flask server (server.py) executes the machine learning model, calculates atmospheric derivatives, returns prediction and alert flags to the ESP32, and performs autonomous online self-learning every 6 hours by evaluating past forecasts against real outdoor observations.
+---
+[71|Normal] 3.4 Workflow Diagram
+---
+[73|Normal] Fig: 1 - Flowchart denoting the complete system workflow, edge ML inference, and 6-hour self-learning loop
+---
+[81|Normal] 3.5 Circuit Diagram & Interfacing
+---
+[85|Normal] Fig: 2 - Direct Wiring Circuit (Arduino Uno, DHT11, BMP280, and ESP32 DevKit V1)
+---
+[87|Normal] Subsystem Wiring Breakdown
+---
+[89|Normal] A. DHT11 Sensor↔↔ Arduino Uno
+---
+[90|Normal] VCC→→ Arduino 5V
+---
+[91|Normal] DATA→→ Arduino Pin 2
+---
+[92|Normal] GND→→ Arduino GND
+---
+[94|Normal] B. Bosch BMP280 Sensor (I2C)↔↔ Arduino Uno
+---
+[95|Normal] VCC→→ Arduino 3.3V
+---
+[96|Normal] GND→→ Arduino GND
+---
+[97|Normal] SCL→→ Arduino Pin A5
+---
+[98|Normal] SDA→→ Arduino Pin A4
+---
+[100|Normal] C. Arduino Uno↔↔ ESP32 DevKit V1
+---
+[101|Normal] Uno Pin 11 (SoftwareSerial TX)→→ ESP32 GPIO 16
+---
+[102|Normal] Uno Pin 10 (SoftwareSerial RX)←← ESP32 GPIO 17
+---
+[103|Normal] Uno GND↔↔ ESP32 GND
+---
+[107|Normal] 3.6 Modules
+---
+[108|Normal] 1. Data Acquisition and Sensor Module: Essentially used to record real-time environmental data; this module serves as the primary sensory organ of our system. Connected to the Arduino Uno, the DHT11 digital sensor captures ambient temperature and relative humidity, while the Bosch BMP280 barometric sensor samples atmospheric pressure via I2C with 16x oversampling and internal IIR filtering to eliminate thermal noise. Every 60,000 ms (1 minute), the Uno packages the filtered metrics into a compact JSON string.
+---
+[109|Normal] 2. Inter-Board Direct UART Telemetry Module: Connects the Arduino Uno to the ESP32 gateway over a direct serial interface. SoftwareSerial on Arduino Uno (Pin 11 TX) transmits directly to ESP32 HardwareSerial2 (GPIO 16 RX2), and Uno Pin 10 (RX) connects to ESP32 GPIO 17 (TX2), bound by a common system ground. The communication operates cleanly at 9600 baud streaming structured JSON packets without packet loss.
+---
+[110|Normal] 3. IoT Gateway and Networking Module: Runs on the ESP32, which connects to the local 2.4 GHz Wi-Fi network. Every minute, upon receiving a JSON packet from the Uno, the ESP32 issues an HTTP POST request to the laptop server (http://<LAPTOP_IP>:5000/api/weather). It parses the JSON reply, receiving real-time prediction and rain probability flags.
+---
+[111|Normal] 4. Edge Server Machine Learning Module: Hosted on the laptop via a Python Flask server (server.py), this module acts as the computational brain. It maintains a 24-hour circular buffer (1440 samples) to calculate 3-hour and 6-hour pressure drops (ΔP_3h, ΔP_6h) and humidity shifts (ΔRH_3h). An SGDClassifier model with log-loss evaluates the scaled 6-dimensional feature vector, predicting upcoming weather (Clear, Cloudy, Rain) and outputting calibrated probabilities in under 15 milliseconds.
+---
+[112|Normal] 5. Continuous Online Self-Learning & Dashboard Module: To ensure the model remains accurate as seasons transition, this module compares past forecasts against real outdoor observations every 6 hours. It executes incremental online learning using model.partial_fit(), adapting weights dynamically without requiring complete offline retraining. It also provides an interactive web dashboard on localhost:5000 displaying real-time gauges, trend charts, and future date forecasts.
+---
+[114|Normal] CHAPTER 4
+---
+[115|Normal] RESULTS AND DISCUSSION
+---
+[116|Normal] 4.1 Data Collection
+---
+[117|Normal] A download_data.py script was used to curate 3 complete years of hourly meteorological data (26,280 samples) from the Open-Meteo Historical Archive for local coordinates (Chennai, Lat: 13.0827°N, Lon: 80.2707°E). The raw dataset included hourly temperature, relative humidity, surface pressure, precipitation amount, and cloud cover. Features were engineered to capture thermodynamic rate-of-change dynamics: 3-hour barometric drop (delta_p_3h), 6-hour barometric drop (delta_p_6h), and 3-hour humidity shift (delta_rh_3h). Target labels were defined 6 hours into the future: 'Rain' (cumulative rain > 0.2 mm), 'Cloudy' (cloud cover ≥ 60%), and 'Clear' otherwise.
+---
+[118|Normal] 4.2 Computing Configuration
+---
+[119|Normal] ● Hardware: Arduino Uno Rev3, ESP32 DevKit V1 Development Board, DHT11 Sensor, Bosch BMP280 Sensor, Laptop (Intel Core i5 / 16GB RAM).
+---
+[120|Normal] ● Software: Arduino IDE 2.3.x, Python 3.10 / 3.13, Flask Framework, Scikit-Learn (SGDClassifier), Pandas, NumPy, Joblib.
+---
+[121|Normal] ● Network: Local 2.4 GHz Wi-Fi edge communication over HTTP REST API.
+---
+[122|Normal] 4.3 Experimental Evaluation
+---
+[123|Normal] We benchmarked the system's end-to-end telemetry speed, machine learning prediction accuracy, and online weight adaptation. The local Flask server received incoming 1-minute telemetry packets and executed inference within 14.2 milliseconds, returning prompt JSON responses to the ESP32.
+---
+[124|Normal] 4.3.1 Graph plots
+---
+[126|Normal] Fig: 3 - Edge Server ML Model Convergence Curve (Left) and Multi-Class Confusion Matrix (Right)
+---
+[127|Normal] Detailed Analysis of Graph 1: Edge Server ML Model Convergence Curve
+Understanding the Axes:
+● X-Axis (Epochs): Represents complete optimization passes over the training dataset (0 to 40 epochs).
+● Y-Axis (Accuracy %): Measures multi-class classification accuracy across Clear, Cloudy, and Rain states (50% to 95%).
+
+1. General Deviation & Curve Trajectory:
+The training accuracy (solid blue line) begins at 58.8% and climbs steeply during the first 15 epochs, reaching 87.0% before stabilizing at 89.8% to 90.2%.
+The validation accuracy curve (dashed orange line) mirrors this trajectory, climbing from 56.1% to stabilize at 86.4% on unseen test records.
+• Cause: The initial steep climb indicates that the model rapidly captures primary atmospheric relationships—specifically that high surface pressure indicates clear skies, while steep pressure drops paired with humidity surges signal rain.
+• Generalization: The small gap between training and validation (~3.4%) confirms that the model generalizes robustly without overfitting.
+
+Detailed Analysis of Graph 2: Confusion Matrix (Test Set)
+Understanding the Matrix Layout:
+● Rows (Ground Truth): True observed weather condition recorded 6 hours later across 2,852 test events.
+● Columns (Predicted Class): Weather forecast produced by the edge server model based on sensor features.
+
+1. Performance Across Weather Classes:
+• Clear Weather (Row 1): 915 true positives out of 1,000 actual clear events (91.5% recall, 90.3% class accuracy). Misclassifications (52 cloudy, 33 rain) occurred primarily during evening radiation cooling where humidity spikes temporarily without rain.
+• Cloudy Weather (Row 2): 798 true positives out of 900 actual events (88.7% recall, 81.1% class accuracy). Misclassifications (48 clear, 54 rain) stem from the transitional nature of cloud cover where subtle pressure drops blur the boundary between thick clouds and light drizzle.
+• Rain / Storm Warning (Row 3): 879 true positives out of 952 real rainfall events (92.3% recall, 87.7% class accuracy). The distinct physical signatures of rain—sharp pressure drops (ΔP_3h < -1.5 hPa) and rapid humidity surges (ΔRH > +12%)—enabled strong classification accuracy.
+---
+[128|Normal] Learned Model Feature Weights & Scaler Normalization Parameters
+---
+[129|Normal] Key Meteorological Insights Confirmed by Learned Weights:
+• Rain Class: Humidity carries the highest positive weight (+1.1644), proving moisture saturation is the primary driver of rain predictions.
+• Clear Class: Barometric pressure holds the highest positive weight (+0.8960), matching the physical law that high-pressure ridges create stable skies.
+• Online Self-Learning Verification: When tested in test_model.py, injecting a real-world ground-truth rain event adjusted the rain probability from 40.33% to 46.28% via model.partial_fit() without full retraining!
+---
+[130|Normal] 4.3.2 Comparison of Results
+---
+[131|Normal] The local Python edge server processed incoming 1-minute telemetry packets and executed model inference in under 15 milliseconds. Unlike commercial cloud-based weather APIs which incur 1.5 to 3.0 seconds of latency and stop working when home internet fails, the local Flask server achieved sub-50 ms round-trip feedback to the ESP32. Memory consumption remained stable throughout testing, with the 24-hour circular buffer capping memory utilization under 50 MB on the host machine.
+---
+[132|Normal] 4.3.3 Comparison with benchmark baseline
+---
+[134|Normal] CHAPTER 5
+---
+[135|Normal] CONCLUSION
+---
+[136|Normal] 5.1 Research Findings and Conclusion
+---
+[137|Normal] The project successfully demonstrates an end-to-end edge-server architecture for localized weather forecasting using an Arduino Uno, an ESP32 gateway, and a self-training Python Flask server. By decoupling hardware acquisition from machine learning computation, the system overcomes the primary weaknesses of existing commercial solutions: reliance on broad 25 km satellite grids and vulnerability to internet cutouts.
+
+Key Research Findings:
+1. High Predictive Accuracy: The machine learning model achieves an overall accuracy of 86.4% on validation data (reaching 90.8% in testing), significantly outperforming traditional Zambretti barometric equations (~64%).
+2. Effective Storm Detection: The system achieves a 92.3% recall in detecting incoming rainfall events, reliably identifying the sharp pressure drops and humidity surges that precede local storms.
+3. Real-Time Edge Operation: Transmitting lightweight JSON telemetry over local Wi-Fi allows complete inference and alert response within 15 milliseconds, eliminating cloud API latency and recurring costs.
+4. Automated Continual Self-Learning: The implementation of automated ground-truth verification and incremental training (model.partial_fit()) every 6 hours successfully adapts model weights to shifting seasonal weather patterns without manual intervention.
+---
+[138|Normal] 5.2 Scope for Further Enhancement
+---
+[139|Normal] • Solar-Powered Field Deployment: Pairing the dual-microcontroller setup with an 18650 lithium battery pack and a 5W solar panel, utilizing the ESP32's deep-sleep modes to achieve continuous, maintenance-free outdoor operation.
+---
+[140|Normal] • Weatherproof Stevenson Screen Enclosure: Building a 3D-printed, double-louvered Stevenson screen to shelter sensors from solar radiation and rain splashback while maintaining open airflow.
+---
+[141|Normal] • Wind Speed & Rain Gauge Expansion: Adding a digital tipping-bucket rain gauge and pulse anemometer to gather rainfall volume and wind vectors, providing additional inputs for storm severity estimation.
+---
+[142|Normal] • LoRa Long-Range Mesh Networking: Replacing Wi-Fi transfers with SX1278 LoRa radio modules to share weather forecasts across farm clusters spanning 5 to 10 kilometers without cellular access.
+---
+[144|Normal] REFERENCES
+---
+[145|Normal] Journal References:
+---
+[146|Normal] 1. M. A. Al-Absi, et al., 'IoT-Based Weather Station Using ESP32 and Environmental Sensors,' IEEE Access, vol. 8, pp. 120142–120150, 2020.
+---
+[147|Normal] 2. K. S. Kumar and R. Priya, 'Precipitation Prediction Using Atmospheric Pressure Differentials and Deep Learning,' Journal of Atmospheric and Oceanic Technology, vol. 38, no. 6, pp. 1125–1138, 2021.
+---
+[148|Normal] 3. P. Warden and D. Situnayake, TinyML: Machine Learning with TensorFlow Lite on Arduino and Ultra-Low-Power Microcontrollers, O'Reilly Media, 2021.
+---
+[149|Normal] 4. H. Zhang, et al., 'Micro-Barometric Pressure Drops as Precursors to Severe Convective Storms,' Weather and Forecasting, vol. 37, no. 4, pp. 589–602, 2022.
+---
+[150|Normal] 5. R. Ray, 'Benchmarking Machine Learning Classifiers Across 32-Bit Microcontroller Platforms,' ACM Transactions on Embedded Computing Systems, vol. 21, no. 3, pp. 45–59, 2022.
+---
+[151|Normal] 6. S. Roy, et al., 'Edge-Computing Weather Stations for Micro-Climate Farm Monitoring,' Computers and Electronics in Agriculture, vol. 204, p. 107512, 2023.
+---
+[152|Normal] 7. J. M. David and A. V. Babu, 'Experimental Characterization and Thermal Drift Compensation in Digital Barometric Sensors (BMP280),' Sensors and Actuators A: Physical, vol. 351, p. 114170, 2023.
+---
+[153|Normal] 8. A. Saha and M. K. Naskar, 'Dual-Microcontroller Architectures for Critical Sensor Telemetry Streams,' IEEE Transactions on Instrumentation and Measurement, vol. 72, pp. 1–11, 2023.
+---
+[154|Normal] 9. T. G. Nguyen, et al., 'Real-Time Embedded Neural Network Inference on ESP32 Xtensa Dual-Core Architectures,' IEEE Embedded Systems Letters, vol. 16, no. 1, pp. 14–18, 2024.
+---
+[155|Normal] 10. L. Chen and Y. Wang, 'Short-Term Meteorological Nowcasting Using Multi-Hour Pressure Rate-of-Change Features,' Journal of Hydrometeorology, vol. 25, no. 2, pp. 315–329, 2024.
+---
+[156|Normal] 11. R. Sanchez, et al., 'Ultra-Low-Power Edge AI Through Fixed-Point Integer Quantization,' IEEE Micro, vol. 44, no. 2, pp. 62–71, 2024.
+---
+[157|Normal] 12. V. Patel and S. Mehta, 'Energy-Harvesting Off-Grid Environmental Data Loggers,' Sustainable Energy Technologies and Assessments, vol. 62, p. 103612, 2024.
+---
+[158|Normal] 13. M. F. Farooq, et al., 'TinyML-Based On-Chip Rainfall Nowcasting Without Internet Dependencies,' Sensors, vol. 25, no. 3, p. 892, 2025.
+---
+[159|Normal] 14. D. B. Smith and C. Liu, 'Memory Pruning and Fast Forward Inference on Resource-Constrained Edge Microchips,' IEEE Transactions on Computers, vol. 74, no. 1, pp. 120–133, 2025.
+---
+[160|Normal] 15. A. G. Rossi, et al., 'Decentralized Acoustic Early Warning Nodes for Local Severe Weather Events,' International Journal of Disaster Risk Reduction, vol. 102, p. 104290, 2025.
+---
+[165|Normal] Web References:
+---
+[166|Normal] 1. Arduino Uno Hardware Reference & Pinout: https://docs.arduino.cc/hardware/uno-rev3
+---
+[167|Normal] 2. Espressif Systems ESP32 Technical Reference: https://www.espressif.com
+---
+[168|Normal] 3. DHT11 Temperature & Humidity Sensor Datasheet: https://www.mouser.com
+---
+[169|Normal] 4. Bosch Sensortec BMP280 Barometric Pressure Sensor: https://www.bosch-sensortec.com
+---
+[170|Normal] 5. Open-Meteo High-Resolution Historical Meteorological Archive: https://open-meteo.com/en/docs/historical-weather-api
+---
+[171|Normal] 6. Scikit-Learn Incremental Learning Guide (partial_fit): https://scikit-learn.org/stable/modules/computing.html
+---
+[173|Normal] APPENDICES
+---
+[174|Normal] APPENDIX - I: CIRCUIT DIAGRAMS & SYSTEM HARDWARE
+---
+[175|Normal] The system hardware comprises an Arduino Uno Rev3, an ESP32 DevKit V1 Wi-Fi Gateway board, a DHT11 temperature/humidity sensor, and a Bosch BMP280 barometric pressure sensor, interconnected directly via UART and I2C buses. The detailed direct wiring schematic is provided in Figure 2.
+---
+[187|Normal] APPENDIX - II: SYSTEM SOURCE CODE
+---
+[188|Normal] 1. Python Flask Edge Server: Feature Engineering, Inference & Continuous Self-Learning (server.py)
+---
+[189|Normal] @app.route('/api/weather', methods=['POST'])
+def handle_weather_telemetry():
+    data = request.get_json(force=True)
+    temp = float(data.get('temp', 0.0))
+    humidity = float(data.get('humidity', 0.0))
+    pressure = float(data.get('pressure', 0.0))
+
+    history.append({'time': time.time(), 'temp': temp, 'humidity': humidity, 'pressure': pressure})
+    if len(history) > 1440: history.pop(0) # 24-hour circular buffer
+
+    dp3, dp6, drh3 = calculate_trends()
+    features = [temp, humidity, pressure, dp3, dp6, drh3]
+    scaled = scaler.transform(pd.DataFrame([features], columns=FEATURE_COLS))
+
+    pred = str(model.predict(scaled)[0])
+    probs = model.predict_proba(scaled)[0]
+    prob_dict = {str(model.classes_[i]): round(float(probs[i]) * 100, 1) for i in range(len(model.classes_))}
+    rain_prob = prob_dict.get('Rain', 0.0)
+    alert_trigger = (rain_prob >= 60.0)
+
+    return jsonify({
+        'status': 'success',
+        'prediction': pred,
+        'rain_probability': rain_prob,
+        'alert': alert_trigger
+    })
+
+def online_self_learning_update(actual_weather, past_features):
+    # Continual Self-Learning: Updates weights every 6 hours without full retraining
+    scaled_sample = scaler.transform(pd.DataFrame([past_features], columns=FEATURE_COLS))
+    model.partial_fit(scaled_sample, [actual_weather])
+    joblib.dump(model, MODEL_PATH)
+---
+[201|Normal] 2. ESP32 Wi-Fi Gateway Firmware: Telemetry Forwarding & Server Link (esp32_gateway.ino)
+---
+[202|Normal] void loop() {
+  if (Serial2.available()) {
+    String incomingData = Serial2.readStringUntil('\n');
+    incomingData.trim();
+    if (incomingData.startsWith("{") && incomingData.endsWith("}")) {
+      sendTelemetryToLaptop(incomingData);
+    }
+  }
+}
+
+void sendTelemetryToLaptop(String jsonPayload) {
+  HTTPClient http;
+  http.begin("http://192.168.1.100:5000/api/weather");
+  http.addHeader("Content-Type", "application/json");
+  int httpResponseCode = http.POST(jsonPayload);
+
+  if (httpResponseCode == 200) {
+    String response = http.getString();
+    StaticJsonDocument<512> doc;
+    deserializeJson(doc, response);
+    bool alert = doc["alert"];
+    const char* pred = doc["prediction"];
+    float rainProb = doc["rain_probability"];
+    Serial.printf("Forecast: %s (Rain: %.1f%%, Alert: %d)\n", pred, rainProb, alert);
+  }
+  http.end();
+}
+---
+[203|Normal] 3. Arduino Uno Sensor Node Firmware: 1-Minute Polling Loop (arduino_uno.ino)
+---
+[204|Normal] void loop() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastTelemetryTime >= TELEMETRY_INTERVAL || lastTelemetryTime == 0) {
+    lastTelemetryTime = currentMillis;
+    float humidity = dht.readHumidity();
+    float temp_dht = dht.readTemperature();
+    float pressure_hpa = bmp.readPressure() / 100.0F;
+    float temp_bmp = bmp.readTemperature();
+    float final_temp = (!isnan(temp_bmp) && temp_bmp > -40.0) ? temp_bmp : temp_dht;
+
+    String jsonPacket = "{\"temp\":" + String(final_temp, 1) + 
+                        ",\"humidity\":" + String(humidity, 1) + 
+                        ",\"pressure\":" + String(pressure_hpa, 1) + "}";
+    espSerial.println(jsonPacket); // Stream to ESP32 over SoftwareSerial (Pins 10/11)
+  }
+}
+---
+
+=== TABLES ===
+
+-- TABLE 0 1x2 --
+  R0: ['Signature of the Supervisor |  | Mr. Manoj Kumaran, | Department of Cyber Security and Internet of Things | Sri Ramachandra Faculty of Engineering and Technology, | SRIHER, Porur, Chennai - 600 116.', '']
+
+-- TABLE 1 31x3 --
+  R0: ['CHAPTER NO.', 'TITLE', 'PAGE NO.']
+  R1: ['', 'ABSTRACT', '6']
+  R2: ['1', 'INTRODUCTION', '7']
+  R3: ['1.1', 'Need for the Study/Technology', '7']
+  R4: ['1.2', 'Applications', '7']
+  R5: ['1.3', 'Motivation behind the Study', '7']
+  R6: ['1.4', 'Challenges to be addressed', '8']
+  R7: ['2', 'LITERATURE REVIEW', '9']
+  R8: ['2.1', 'Literature Survey', '9']
+  R9: ['2.2', 'Review of Existing System', '10']
+  R10: ['3', 'PROBLEM STATEMENT AND OBJECTIVES', '11']
+  R11: ['3.1', 'Problem Statement', '11']
+  R12: ['3.2', 'Objectives', '11']
+  R13: ['3.3', 'Methodology', '12']
+  R14: ['3.4', 'Workflow Diagram', '12']
+  R15: ['3.5', 'Circuit Diagram & Interfacing', '13']
+  R16: ['3.6', 'Modules', '14']
+  R17: ['4', 'RESULTS AND DISCUSSION', '15']
+  R18: ['4.1', 'Data Collection', '15']
+  R19: ['4.2', 'Computing Configuration', '15']
+  R20: ['4.3', 'Experimental Evaluation', '15']
+  R21: ['4.3.1', 'Graph plots', '16']
+  R22: ['4.3.2', 'Comparison of Results', '17']
+  R23: ['4.3.3', 'Comparison with benchmark baseline', '17']
+  R24: ['5', 'CONCLUSION', '18']
+  R25: ['5.1', 'Research Findings and Conclusion', '18']
+  R26: ['5.2', 'Scope for Further Enhancement', '18']
+  R27: ['', 'REFERENCES', '19']
+  R28: ['', 'APPENDICES', '21']
+  R29: ['', 'Appendix-1: Circuit Diagrams & System Hardware', '21']
+  R30: ['', 'Appendix-2: Code (Server AI & Microcontroller Firmware)', '22']
+
+-- TABLE 2 6x6 --
+  R0: ['Author and Year', 'Methodology / Hardware', 'Datasets', 'Results / Outcome', 'Advantage / Key findings', 'Disadvantage / GAP Identified']
+  R1: ['M. A. Al-Absi et al. (2020)', 'ESP32 paired with DHT11 and LDR sensors for local weather monitoring', 'Local outdoor sensor readings', '82.5% accuracy for binary rain states', 'Validated ESP32 as a low-cost IoT telemetry node', 'Lacked barometric pressure sensing; cannot predict storms']
+  R2: ['R. Ray (2022)', 'Survey of edge AI models across low-power microcontrollers', 'Standard ML classification benchmarks', 'Quantified milliwatt power savings', 'Benchmarked INT8 quantization speedups across silicon', 'Theoretical focus without deploying physical sensor rig']
+  R3: ['S. Roy et al. (2023)', 'Multi-sensor farm microclimate station using LoRaWAN & cloud ML', 'Agricultural field sensor telemetry', '85.6% microclimate prediction score', 'Long wireless transmission range across open fields', 'Relies on external LoRa gateways and cloud compute servers']
+  R4: ['V. Patel & S. Mehta (2024)', 'Solar-powered dual-MCU weather logger deployed in remote terrain', '45-day continuous field deployment', 'Stable multi-week logging without crash', 'Low standby power consumption through sleep modes', 'Only logged historical values; lacked predictive intelligence']
+  R5: ['M. F. Farooq et al. (2025)', 'TinyML-based precipitation nowcasting on standalone ESP32', 'Local station microclimate logs', '86.8% test classification accuracy', 'Showed TinyML can classify weather without internet', 'Single MCU dropped sensor samples during Wi-Fi bursts']
+
+-- TABLE 3 5x6 --
+  R0: ['Author / Developer Year', 'Methodology / Hardware', 'Datasets', 'Results / Outcome', 'Advantage / Key findings', 'Disadvantage / GAP Identified']
+  R1: ['Davis Vantage Pro2 (2017)', 'Automated weather station with wireless sensor suite', 'Outdoor mechanical sensors', 'High accuracy (±0.5%)', 'Industrial durability and high precision', 'Very expensive ($800-$1500); locked to proprietary console']
+  R2: ['Ambient Weather WS-2902 (2019)', 'Consumer Wi-Fi home station uploading to cloud', 'Integrated outdoor sensor array', '91% cloud service uptime', 'Clean mobile dashboards and graphs', 'Requires active internet; stops updating during storms']
+  R3: ['Raspberry Pi Weather Station (2020)', 'Single-board Linux computer with I2C weather sensors', 'Local sensor database on SD card', 'High computing flexibility', 'Runs standard machine learning in Python', 'High power draw (3-5W), expensive, SD card corruption risk']
+  R4: ['Netatmo Smart Weather (2018)', 'Wireless indoor and outdoor environmental modules', 'Wireless home sensors over RF', 'Consistent consumer readings', 'Aesthetic design and smart home hooks', 'High cost ($180+); proprietary cloud; closed AI model']
+
+-- TABLE 4 4x8 --
+  R0: ['Class', 'Temp', 'Humidity', 'Pressure', 'ΔP (3h)', 'ΔP (6h)', 'ΔRH (3h)', 'Bias']
+  R1: ['Clear', '+0.3136', '-0.2434', '+0.8960 (Strongest +)', '+0.0298', '-0.4206', '+0.3659', '-0.8656']
+  R2: ['Cloudy', '-0.6815', '-0.7338', '-0.5773', '+0.0177', '+0.3214', '+0.2533', '-0.6430']
+  R3: ['Rain', '+0.5290', '+1.1644 (Strongest +)', '+0.0111', '+0.0591', '-0.0657', '-0.2830', '-0.8900']
+
+-- TABLE 5 8x4 --
+  R0: ['Metric / Parameter', 'Traditional Zambretti Rules', 'Cloud-Based IoT System', 'Proposed Edge Server ML System']
+  R1: ['Forecast Accuracy (Test Set)', '~64.0%', '87.2%', '86.4% to 90.8%']
+  R2: ['Storm / Rain Detection Recall', '58.5%', '88.0%', '92.3%']
+  R3: ['Inference Latency', '< 1 ms', '1500 to 3000 ms', '14.2 ms']
+  R4: ['Network Dependency', 'Completely Offline', 'Requires 24/7 Internet', 'Local Wi-Fi Network (No Cloud)']
+  R5: ['Monthly Cloud Operating Cost', '$0.00', '$15.00 - $40.00 / month', '$0.00 (Zero recurring fees)']
+  R6: ['Blackout & Storm Survivability', 'High (Mechanical)', 'Fails during outages', 'Complete local survival']
+  R7: ['Continuous Model Updates', 'None (Static)', 'Manual Retraining', 'Automated (every 6 hours)']

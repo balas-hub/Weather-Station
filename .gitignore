@@ -1,0 +1,39 @@
+# Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Sensitive credentials & secrets
+alerts_config.json
+.env
+*.env
+
+# SQLite Database
+db.sqlite3
+db.sqlite3-journal
+
+# Logs
+*.log
+logs/
+
+# Temporary and backup files
+~$*
+*BACKUP*
+*.tmp
+check_lines.txt
+doc_content.txt
+sizes_check.txt
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poonamallee Weather Station & AI Forecasting</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              dark: '#080C14',
+              card: '#0F172A',
+              border: '#1E293B',
+              accent: '#38BDF8',
+              emerald: '#10B981',
+              rose: '#F43F5E',
+              amber: '#F59E0B'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      background-color: #080C14;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.12);
+    }
+    .glow-rose {
+      box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.35);
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col antialiased">
+
+  <!-- ================= TOP NAVIGATION BAR ================= -->
+  <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-cloud-sun-rain text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+            Poonamallee Weather Station
+          </h1>
+          <p class="text-xs text-slate-400 flex items-center gap-1">
+            <i class="fa-solid fa-location-dot text-rose-400"></i>
+            {{ station_name }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Header Controls: Mobile Alert Toggle, Telegram Settings, Hardware Status -->
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        
+        <!-- Mobile & Browser Alert Toggle Button -->
+        <button onclick="requestNotificationAccess()" id="btn-mobile-alert" class="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+          <i class="fa-solid fa-bell text-amber-400" id="icon-mobile-alert"></i>
+          <span id="text-mobile-alert">Phone Alerts: Off</span>
+        </button>
+
+        <!-- Telegram Configuration Button -->
+        <button onclick="openTelegramModal()" class="px-3 py-1.5 rounded-xl border border-sky-600/40 bg-sky-950/40 hover:bg-sky-900/50 text-xs font-semibold text-sky-400 transition flex items-center gap-1.5">
+          <i class="fa-brands fa-telegram text-sky-400"></i>
+          <span class="hidden sm:inline">Telegram Alerts</span>
+        </button>
+
+        <!-- Live Hardware Connection Status -->
+        <div class="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/90 text-xs" id="hw-status-container">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" id="hw-pulse-ping"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5" id="hw-pulse-dot"></span>
+          </span>
+          <span class="font-bold text-slate-300" id="hw-status-text">Hardware</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= TELEGRAM CONFIGURATION MODAL ================= -->
+  <div id="telegram-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="glass-card max-w-md w-full rounded-2xl p-6 border border-sky-500/30 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-brands fa-telegram text-sky-400"></i>
+          Telegram Alert Configuration
+        </h3>
+        <button onclick="closeTelegramModal()" class="text-slate-400 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Receive automatic storm, flood, and heatwave alerts directly in your Telegram app.
+      </p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Telegram Bot Token</label>
+          <input type="text" id="input-tg-token" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRstuVWXyz" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500">
+          <span class="text-[10px] text-slate-500 mt-1 block">Get from <strong class="text-slate-400">@BotFather</strong> on Telegram</span>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Your Telegram Chat ID</label>
+          <input type="text" id="input-tg-chat" placeholder="e.g. 987654321" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-sky-500">
+          <span class="text-[10px] text-slate-500 mt-1 block">Find your ID by messaging <strong class="text-slate-400">@userinfobot</strong> on Telegram</span>
+        </div>
+
+        <div id="tg-status-feedback" class="hidden p-2.5 rounded-xl text-xs font-medium"></div>
+      </div>
+
+      <div class="pt-2 flex items-center justify-between gap-2">
+        <button onclick="testTelegramMessage()" id="btn-tg-test" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition">
+          <i class="fa-solid fa-paper-plane mr-1 text-sky-400"></i> Send Test Alert
+        </button>
+        <button onclick="saveTelegramSettings()" id="btn-tg-save" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs transition">
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAIN DASHBOARD BODY ================= -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+
+    <!-- SENSOR USAGE CLARITY BOX -->
+    <div class="glass-card rounded-2xl p-4 border border-cyan-500/20 bg-slate-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-2">
+        <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">
+          <i class="fa-solid fa-circle-nodes"></i>
+        </div>
+        <span class="font-bold text-white text-sm">Sensor Data Calculations:</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:w-auto">
+        <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+          <i class="fa-solid fa-temperature-half text-amber-400"></i>
+          <div>
+            <span class="text-slate-400 block text-[10px]">Temperature</span>
+            <span class="font-bold text-slate-200">Average of (BMP280 + DHT11)</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+          <i class="fa-solid fa-gauge-high text-blue-400"></i>
+          <div>
+            <span class="text-slate-400 block text-[10px]">Pressure</span>
+            <span class="font-bold text-slate-200">From BMP280</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-800">
+          <i class="fa-solid fa-droplet text-cyan-400"></i>
+          <div>
+            <span class="text-slate-400 block text-[10px]">Humidity</span>
+            <span class="font-bold text-slate-200">From DHT11</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ACTIVE EMERGENCY ALERT BANNER (Shown dynamically when hazards exist) -->
+    <div id="hazard-banner" class="hidden glass-card rounded-2xl p-5 border-l-4 border-l-rose-500 glow-rose bg-gradient-to-r from-rose-950/50 to-slate-900/70">
+      <div class="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div class="space-y-2 flex-1">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 uppercase" id="alert-severity">EMERGENCY ALERT</span>
+            <span class="text-xs text-slate-400" id="alert-time">Triggered Now</span>
+          </div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2" id="alert-title">
+            <i class="fa-solid fa-triangle-exclamation text-rose-500"></i>
+            Atmospheric Hazard Detected
+          </h2>
+          <p class="text-sm text-slate-300" id="alert-desc">
+            Extreme weather pattern detected from sensor readings.
+          </p>
+
+          <!-- Historical Chennai Event Match Box -->
+          <div class="mt-3 p-3.5 rounded-xl bg-slate-950/80 border border-rose-500/30 space-y-1.5" id="alert-historical-box">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                Similar Historical Chennai Disaster Pattern:
+              </span>
+              <span class="text-xs font-bold px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800" id="alert-similarity">94% Match</span>
+            </div>
+            <p class="text-xs text-white font-medium" id="alert-hist-name">December 2015 Chennai Floods</p>
+            <p class="text-xs text-slate-400" id="alert-hist-impact">
+              Stalled monsoonal low caused 494 mm rainfall in 24 hours. Extensive flooding across Poonamallee basin.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex md:flex-col items-center gap-2 shrink-0">
+          <button onclick="dismissActiveAlert()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
+            Dismiss Alert
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= SECTION 1: LIVE SENSOR READINGS ================= -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      
+      <!-- Temperature Card: Average of BMP280 + DHT11 -->
+      <div class="glass-card rounded-2xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Temperature</span>
+          <i class="fa-solid fa-temperature-half text-amber-400"></i>
+        </div>
+        <div class="my-2">
+          <div class="text-3xl font-extrabold text-white tracking-tight" id="val-temp">--.-°C</div>
+          <div class="text-[11px] text-cyan-400 font-medium mt-1">
+            Average of BMP + DHT
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+          <span>BMP: <strong class="text-white" id="val-bmp-t">--.-°</strong></span>
+          <span>DHT: <strong class="text-white" id="val-sht-t">--.-°</strong></span>
+        </div>
+      </div>
+
+      <!-- Humidity Card: From DHT11 -->
+      <div class="glass-card rounded-2xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Humidity</span>
+          <i class="fa-solid fa-droplet text-cyan-400"></i>
+        </div>
+        <div class="my-2">
+          <div class="text-3xl font-extrabold text-white tracking-tight" id="val-humidity">--.-%</div>
+          <div class="text-[11px] text-slate-400 mt-1">
+            Measured by DHT11
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+          <span>Sensor: <strong>DHT11</strong></span>
+          <span class="text-emerald-400 font-semibold">Active</span>
+        </div>
+      </div>
+
+      <!-- Pressure Card: From BMP280 -->
+      <div class="glass-card rounded-2xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Pressure</span>
+          <i class="fa-solid fa-gauge-high text-blue-400"></i>
+        </div>
+        <div class="my-2">
+          <div class="text-3xl font-extrabold text-white tracking-tight" id="val-pressure">----.-</div>
+          <div class="text-[11px] font-medium mt-1 flex items-center gap-1" id="trend-3h-container">
+            <span id="trend-icon"><i class="fa-solid fa-minus text-slate-400"></i></span>
+            <span id="val-trend">0.0 hPa / 3h</span>
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+          <span>Sensor: <strong>BMP280</strong></span>
+          <span id="val-altitude">--m alt</span>
+        </div>
+      </div>
+
+      <!-- Heat Index Card -->
+      <div class="glass-card rounded-2xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Feels Like</span>
+          <i class="fa-solid fa-sun text-rose-400"></i>
+        </div>
+        <div class="my-2">
+          <div class="text-3xl font-extrabold text-white tracking-tight" id="val-heat-index">--.-°C</div>
+          <div class="text-[11px] mt-1 font-semibold" id="val-heat-level">
+            <span class="text-emerald-400">Comfortable</span>
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+          <span>Heat Index</span>
+          <span>Calculated</span>
+        </div>
+      </div>
+
+      <!-- Dew Point Card -->
+      <div class="glass-card rounded-2xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Dew Point</span>
+          <i class="fa-solid fa-water text-teal-400"></i>
+        </div>
+        <div class="my-2">
+          <div class="text-3xl font-extrabold text-white tracking-tight" id="val-dew-point">--.-°C</div>
+          <div class="text-[11px] text-slate-400 mt-1">
+            Moisture Threshold
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+          <span>Dew Point</span>
+          <span>Calculated</span>
+        </div>
+      </div>
+
+      <!-- Station Status Card -->
+      <div class="glass-card rounded-2xl p-4 flex flex-col justify-between hover:border-cyan-500/40 transition">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>ESP32 Link</span>
+          <i class="fa-solid fa-wifi text-emerald-400"></i>
+        </div>
+        <div class="my-2">
+          <div class="text-3xl font-extrabold text-white tracking-tight" id="val-rssi">Online</div>
+          <div class="text-[11px] text-emerald-400 mt-1 font-medium" id="val-packet-count">
+            1-min telemetry
+          </div>
+        </div>
+        <div class="text-[10px] text-slate-400 border-t border-slate-800 pt-2 flex justify-between">
+          <span>Gateway: <strong>ESP32</strong></span>
+          <span class="text-slate-300">Ready</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= SECTION 2: SIMULATE ALERT CONDITIONS (TEST PANEL) ================= -->
+    <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-3 bg-gradient-to-r from-slate-900 to-slate-950">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-vial-circle-check text-cyan-400"></i>
+            Simulate Weather Alert Conditions (Live Testing)
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Test how the system triggers mobile phone push notifications, audio chime, vibration, and Telegram alerts.
+          </p>
+        </div>
+        <div class="text-xs text-slate-400 font-medium">
+          Instant Dispatch
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+        
+        <!-- Simulate Storm -->
+        <button onclick="simulateHazard('storm')" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-left transition hover:border-rose-500/60 group">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-white group-hover:text-rose-400 transition">🌪️ Storm Warning</span>
+            <i class="fa-solid fa-wind text-slate-500 group-hover:text-rose-400"></i>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Simulates rapid barometric plunge (-8.4 hPa drop).
+          </p>
+        </button>
+
+        <!-- Simulate Heatwave -->
+        <button onclick="simulateHazard('heatwave')" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-left transition hover:border-amber-500/60 group">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-white group-hover:text-amber-400 transition">🔥 Heatwave Alert</span>
+            <i class="fa-solid fa-sun text-slate-500 group-hover:text-amber-400"></i>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Simulates 43°C temp with extreme Heat Index &gt;48°C.
+          </p>
+        </button>
+
+        <!-- Simulate Flood -->
+        <button onclick="simulateHazard('flood')" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-left transition hover:border-blue-500/60 group">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-white group-hover:text-blue-400 transition">🌧️ Flood Risk</span>
+            <i class="fa-solid fa-cloud-showers-heavy text-slate-500 group-hover:text-blue-400"></i>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Simulates 99% humidity and torrential downpour.
+          </p>
+        </button>
+
+        <!-- Reset to Normal -->
+        <button onclick="clearAllAlerts()" class="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-left transition hover:border-emerald-500/60 group">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-white group-hover:text-emerald-400 transition">🛡️ Clear Alerts</span>
+            <i class="fa-solid fa-circle-check text-slate-500 group-hover:text-emerald-400"></i>
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Resets station back to peaceful normal status.
+          </p>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- ================= SECTION 3: 24-HOUR WEATHER FORECAST ================= -->
+    <div class="glass-card rounded-2xl p-5 space-y-4 border border-slate-800">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-chart-line text-cyan-400"></i>
+            Weather Forecast (Next 24 Hours)
+          </h3>
+          <p class="text-xs text-slate-400">
+            Hourly predicted temperature and atmospheric pressure
+          </p>
+        </div>
+        <div class="flex items-center gap-3 text-xs text-slate-400">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-cyan-400 inline-block"></span> Temperature (°C)</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span> Pressure (hPa)</span>
+        </div>
+      </div>
+
+      <!-- Forecast Chart Canvas -->
+      <div class="h-64 sm:h-72 w-full">
+        <canvas id="forecastChart"></canvas>
+      </div>
+
+      <!-- Horizontal Hourly Timeline -->
+      <div class="overflow-x-auto scrollbar-thin pb-2 pt-1">
+        <div class="flex space-x-3 min-w-max" id="hourly-forecast-strip">
+          <div class="text-xs text-slate-500 py-4">Generating hourly projections...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= SECTION 4: FUTURE DATE PREDICTOR & HISTORICAL TELEMETRY ================= -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Future Date Predictor Widget -->
+      <div class="glass-card rounded-2xl p-5 space-y-4 lg:col-span-1 border border-cyan-500/20 bg-gradient-to-b from-slate-900 to-slate-950">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-calendar-days text-cyan-400"></i>
+            Future Date AI Predictor
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">
+            Check expected weather for any upcoming date in future months or years.
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Pick a Date</label>
+            <input type="date" id="target-date-input" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500">
+          </div>
+          
+          <button onclick="queryFutureDateForecast()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-xs tracking-wide shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            Forecast Selected Date
+          </button>
+        </div>
+
+        <!-- Future Date Result Display Card -->
+        <div id="future-date-result" class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-cyan-400" id="fut-date-label">Tomorrow</span>
+            <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-medium" id="fut-confidence">88% Confidence</span>
+          </div>
+
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl font-black text-white" id="fut-temp">31.8°C</span>
+            <span class="text-xs text-slate-400" id="fut-temp-bounds">[30.6°C - 33.0°C]</span>
+          </div>
+
+          <div class="text-xs text-slate-300 font-medium flex items-center gap-2" id="fut-condition-row">
+            <i class="fa-solid fa-cloud-sun text-amber-400"></i>
+            <span id="fut-condition">Partly Cloudy</span>
+            <span class="text-slate-500">&bull;</span>
+            <span id="fut-rain-prob">15% Rain</span>
+          </div>
+
+          <div class="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 leading-relaxed" id="fut-context">
+            Normal seasonal weather pattern for Chennai.
+          </div>
+        </div>
+      </div>
+
+      <!-- Historical Sensor Graphs (24h / 7d / 30d) -->
+      <div class="glass-card rounded-2xl p-5 space-y-4 lg:col-span-2 border border-slate-800">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-clock-rotate-left text-teal-400"></i>
+              Recorded Sensor History
+            </h3>
+            <p class="text-xs text-slate-400">Past readings recorded by your station</p>
+          </div>
+          <div class="flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 text-xs">
+            <button onclick="changeHistoryRange('24h')" id="btn-hist-24h" class="px-3 py-1 rounded-lg bg-cyan-600 text-white font-medium">24 Hours</button>
+            <button onclick="changeHistoryRange('7d')" id="btn-hist-7d" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white font-medium">7 Days</button>
+            <button onclick="changeHistoryRange('30d')" id="btn-hist-30d" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white font-medium">30 Days</button>
+          </div>
+        </div>
+
+        <div class="h-64 sm:h-72 w-full">
+          <canvas id="historyChart"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="border-t border-slate-800 bg-slate-950/80 py-4 text-center text-xs text-slate-500">
+    <p>Poonamallee Weather Station &bull; Temperature: (BMP280 + DHT11)/2 &bull; Pressure: BMP280 &bull; Humidity: DHT11</p>
+  </footer>
+
+  <!-- ================= CLIENT JAVASCRIPT ================= -->
+  <script>
+    let forecastChartInstance = null;
+    let historyChartInstance = null;
+    let activeRange = '24h';
+    let mobileAlertsEnabled = false;
+    let activeAlertId = null;
+
+    // Set default target date for future predictor to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('target-date-input').value = tomorrow.toISOString().split('T')[0];
+
+    // ================= MOBILE BROWSER AUDIO & VIBRATION ALERT ENGINE =================
+    // Web Audio API synthesizer for clean loud alarm sound (no external mp3 needed)
+    function playEmergencyAlertSound() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+
+        // 3-tone siren beep sequence
+        const playTone = (freq, startTime, duration) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + startTime);
+          gain.gain.setValueAtTime(0.3, ctx.currentTime + startTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + startTime + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + startTime);
+          osc.stop(ctx.currentTime + startTime + duration);
+        };
+
+        playTone(880, 0, 0.25);   // High beep
+        playTone(660, 0.3, 0.25); // Mid beep
+        playTone(990, 0.6, 0.4);  // Siren tone
+      } catch (e) {
+        console.warn('Audio alert error:', e);
+      }
+    }
+
+    // Trigger mobile vibration
+    function triggerPhoneVibration() {
+      if (navigator.vibrate) {
+        navigator.vibrate([300, 150, 300, 150, 600]);
+      }
+    }
+
+    // Request Notification permission for Phone / Browser
+    async function requestNotificationAccess() {
+      if (!("Notification" in window)) {
+        alert("This browser does not support system notifications.");
+        return;
+      }
+
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        mobileAlertsEnabled = true;
+        updateMobileAlertButton(true);
+        playEmergencyAlertSound();
+        triggerPhoneVibration();
+        new Notification("Weather Alert System Active", {
+          body: "Phone and browser push alerts are enabled! You will be alerted when hazard conditions occur.",
+          icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png"
+        });
+      } else {
+        mobileAlertsEnabled = false;
+        updateMobileAlertButton(false);
+      }
+    }
+
+    function updateMobileAlertButton(enabled) {
+      const btn = document.getElementById('btn-mobile-alert');
+      const text = document.getElementById('text-mobile-alert');
+      const icon = document.getElementById('icon-mobile-alert');
+
+      if (enabled) {
+        btn.className = 'px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-950/40 text-xs font-semibold text-emerald-400 transition flex items-center gap-1.5';
+        text.innerText = 'Phone Alerts: ON';
+        icon.className = 'fa-solid fa-bell text-emerald-400';
+      } else {
+        btn.className = 'px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition flex items-center gap-1.5';
+        text.innerText = 'Phone Alerts: Off';
+        icon.className = 'fa-solid fa-bell-slash text-slate-400';
+      }
+    }
+
+    // Dispatch Native Mobile Alert
+    function triggerMobilePushAlert(title, message) {
+      playEmergencyAlertSound();
+      triggerPhoneVibration();
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(`🚨 ${title}`, {
+          body: message,
+          icon: "https://cdn-icons-png.flaticon.com/512/1163/1163624.png",
+          vibrate: [300, 150, 300, 150, 600]
+        });
+      }
+    }
+
+    // ================= TELEGRAM MODAL & ACTIONS =================
+    function openTelegramModal() {
+      document.getElementById('telegram-modal').classList.remove('hidden');
+      loadTelegramSettings();
+    }
+
+    function closeTelegramModal() {
+      document.getElementById('telegram-modal').classList.add('hidden');
+    }
+
+    async function loadTelegramSettings() {
+      try {
+        const res = await fetch('/api/alerts/telegram/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.chat_id) document.getElementById('input-tg-chat').value = data.chat_id;
+        if (data.masked_token) document.getElementById('input-tg-token').placeholder = `Configured (${data.masked_token})`;
+      } catch (e) {
+        console.error('Error loading Telegram config:', e);
+      }
+    }
+
+    async function saveTelegramSettings() {
+      const token = document.getElementById('input-tg-token').value.trim();
+      const chat = document.getElementById('input-tg-chat').value.trim();
+      const fb = document.getElementById('tg-status-feedback');
+
+      if (!chat) {
+        fb.className = 'p-2.5 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800';
+        fb.innerText = 'Please enter your Telegram Chat ID.';
+        fb.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/alerts/telegram/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bot_token: token, chat_id: chat, enabled: true })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          fb.className = 'p-2.5 rounded-xl text-xs font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-800';
+          fb.innerText = '✅ Telegram settings saved successfully!';
+          fb.classList.remove('hidden');
+        } else {
+          fb.className = 'p-2.5 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800';
+          fb.innerText = data.error || 'Failed to save settings.';
+          fb.classList.remove('hidden');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function testTelegramMessage() {
+      const token = document.getElementById('input-tg-token').value.trim();
+      const chat = document.getElementById('input-tg-chat').value.trim();
+      const fb = document.getElementById('tg-status-feedback');
+      const btn = document.getElementById('btn-tg-test');
+
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Sending...';
+
+      try {
+        const res = await fetch('/api/alerts/telegram/test/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bot_token: token || undefined, chat_id: chat || undefined })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          fb.className = 'p-2.5 rounded-xl text-xs font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-800';
+          fb.innerText = '✅ Sent test alert to Telegram! Check your app.';
+          fb.classList.remove('hidden');
+        } else {
+          fb.className = 'p-2.5 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800';
+          fb.innerText = `❌ ${data.message}`;
+          fb.classList.remove('hidden');
+        }
+      } catch (e) {
+        fb.className = 'p-2.5 rounded-xl text-xs font-medium bg-rose-950/80 text-rose-300 border border-rose-800';
+        fb.innerText = 'Network error contacting server.';
+        fb.classList.remove('hidden');
+      } finally {
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane mr-1 text-sky-400"></i> Send Test Alert';
+      }
+    }
+
+    // ================= SIMULATE HAZARDS & ALERTS =================
+    async function simulateHazard(scenario) {
+      try {
+        const res = await fetch('/api/alerts/simulate/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scenario: scenario })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          fetchActiveAlerts();
+
+          // Sound alarm + vibrate phone + show mobile push notification
+          triggerMobilePushAlert(data.title, data.description);
+        }
+      } catch (e) {
+        console.error('Simulation error:', e);
+      }
+    }
+
+    async function clearAllAlerts() {
+      try {
+        await fetch('/api/alerts/clear/', { method: 'POST' });
+        document.getElementById('hazard-banner').classList.add('hidden');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function dismissActiveAlert() {
+      if (!activeAlertId) {
+        clearAllAlerts();
+        return;
+      }
+      try {
+        await fetch(`/api/alerts/${activeAlertId}/dismiss/`, { method: 'POST' });
+        document.getElementById('hazard-banner').classList.add('hidden');
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // ================= FETCH LIVE SENSOR TELEMETRY =================
+    async function fetchHardwareStatus() {
+      try {
+        const res = await fetch('/api/sensors/hardware-status/');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Update hardware status pill
+        const ping = document.getElementById('hw-pulse-ping');
+        const dot = document.getElementById('hw-pulse-dot');
+        const statusText = document.getElementById('hw-status-text');
+
+        if (data.is_connected) {
+          ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+          dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500';
+          statusText.innerText = 'ESP32 Online';
+          statusText.className = 'font-bold text-emerald-400';
+        } else {
+          ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75';
+          dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500';
+          statusText.innerText = 'Waiting for ESP32';
+          statusText.className = 'font-bold text-amber-400';
+        }
+
+        // Populate Sensor Cards with exact calculated data
+        if (data.latest_reading) {
+          const r = data.latest_reading;
+          
+          // Temperature: Average of BMP and DHT
+          document.getElementById('val-temp').innerText = `${r.fused_temp.toFixed(1)}°C`;
+          document.getElementById('val-bmp-t').innerText = `${r.bmp_temp.toFixed(1)}°C`;
+          document.getElementById('val-sht-t').innerText = `${r.sht_temp.toFixed(1)}°C`;
+
+          // Humidity: From DHT11
+          document.getElementById('val-humidity').innerText = `${r.sht_humidity.toFixed(1)}%`;
+
+          // Pressure: From BMP280
+          document.getElementById('val-pressure').innerText = `${r.bmp_pressure.toFixed(1)} hPa`;
+          document.getElementById('val-altitude').innerText = `${Math.round(r.bmp_altitude || 22)}m alt`;
+
+          // 3-Hour Pressure Trend
+          const trend = r.pressure_trend_3h || 0.0;
+          const trendElem = document.getElementById('val-trend');
+          const trendIcon = document.getElementById('trend-icon');
+          trendElem.innerText = `${trend > 0 ? '+' : ''}${trend.toFixed(1)} hPa / 3h`;
+
+          if (trend <= -3.5) {
+            trendElem.className = 'text-rose-400 font-bold';
+            trendIcon.innerHTML = '<i class="fa-solid fa-angles-down text-rose-500"></i>';
+          } else if (trend < -1.0) {
+            trendElem.className = 'text-amber-400 font-medium';
+            trendIcon.innerHTML = '<i class="fa-solid fa-arrow-trend-down text-amber-400"></i>';
+          } else if (trend > 1.0) {
+            trendElem.className = 'text-emerald-400 font-medium';
+            trendIcon.innerHTML = '<i class="fa-solid fa-arrow-trend-up text-emerald-400"></i>';
+          } else {
+            trendElem.className = 'text-slate-300';
+            trendIcon.innerHTML = '<i class="fa-solid fa-minus text-slate-400"></i>';
+          }
+
+          // Heat Index
+          document.getElementById('val-heat-index').innerText = `${r.heat_index.toFixed(1)}°C`;
+          const hiLevel = document.getElementById('val-heat-level');
+          if (r.heat_index >= 45.0) {
+            hiLevel.innerHTML = '<span class="text-rose-400 font-bold">Danger / Heatstroke</span>';
+          } else if (r.heat_index >= 40.0) {
+            hiLevel.innerHTML = '<span class="text-amber-400 font-medium">Extreme Caution</span>';
+          } else {
+            hiLevel.innerHTML = '<span class="text-emerald-400">Comfortable</span>';
+          }
+
+          // Dew point
+          document.getElementById('val-dew-point').innerText = `${r.dew_point.toFixed(1)}°C`;
+        }
+
+        document.getElementById('val-packet-count').innerText = `${data.packets_today} readings today`;
+
+      } catch (e) {
+        console.error('Error fetching hardware telemetry:', e);
+      }
+    }
+
+    // ================= FETCH ACTIVE HAZARD ALERTS =================
+    async function fetchActiveAlerts() {
+      try {
+        const res = await fetch('/api/alerts/active/');
+        if (!res.ok) return;
+        const data = await res.json();
+        const banner = document.getElementById('hazard-banner');
+
+        if (data.active_alerts && data.active_alerts.length > 0) {
+          const alert = data.active_alerts[0];
+          activeAlertId = alert.id;
+
+          document.getElementById('alert-severity').innerText = `${alert.severity} ALERT`;
+          document.getElementById('alert-title').innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-500"></i> ${alert.title}`;
+          document.getElementById('alert-desc').innerText = alert.description;
+
+          if (alert.matched_historical_event) {
+            document.getElementById('alert-historical-box').classList.remove('hidden');
+            document.getElementById('alert-similarity').innerText = `${alert.matched_historical_event.similarity_pct}% Pattern Match`;
+            document.getElementById('alert-hist-name').innerText = `${alert.matched_historical_event.name} (${alert.matched_historical_event.date})`;
+            document.getElementById('alert-hist-impact').innerText = alert.matched_historical_event.impact;
+          } else {
+            document.getElementById('alert-historical-box').classList.add('hidden');
+          }
+
+          banner.classList.remove('hidden');
+        } else {
+          banner.classList.add('hidden');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // ================= FETCH 24-HOUR FORECAST =================
+    async function fetch24hForecast() {
+      try {
+        const res = await fetch('/api/ai/forecast-24h/');
+        if (!res.ok) return;
+        const data = await res.json();
+        const forecasts = data.forecasts || [];
+        if (forecasts.length === 0) return;
+
+        const labels = forecasts.map(f => {
+          const dt = new Date(f.target_datetime);
+          return dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+        });
+        const temps = forecasts.map(f => f.predicted_temp);
+        const pressures = forecasts.map(f => f.predicted_pressure);
+
+        renderForecastChart(labels, temps, pressures);
+
+        const strip = document.getElementById('hourly-forecast-strip');
+        strip.innerHTML = '';
+
+        forecasts.forEach(f => {
+          const dt = new Date(f.target_datetime);
+          const timeLabel = dt.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+
+          let icon = 'fa-sun text-amber-400';
+          if (f.predicted_condition.includes('Rain') || f.predicted_condition.includes('Downpour')) icon = 'fa-cloud-showers-heavy text-cyan-400';
+          else if (f.predicted_condition.includes('Thunderstorm')) icon = 'fa-cloud-bolt text-amber-400';
+          else if (f.predicted_condition.includes('Storm') || f.predicted_condition.includes('Cyclone')) icon = 'fa-triangle-exclamation text-rose-500';
+          else if (f.predicted_condition.includes('Cloudy')) icon = 'fa-cloud-sun text-slate-300';
+          else if (f.predicted_condition.includes('Overcast')) icon = 'fa-cloud text-slate-400';
+
+          const card = document.createElement('div');
+          card.className = 'w-24 p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-center flex flex-col items-center justify-between space-y-1.5 shrink-0 hover:border-cyan-500/30 transition';
+          card.innerHTML = `
+            <span class="text-[11px] font-semibold text-slate-400">${timeLabel}</span>
+            <i class="fa-solid ${icon} text-lg my-1"></i>
+            <span class="text-sm font-bold text-white">${f.predicted_temp.toFixed(1)}°C</span>
+            <span class="text-[10px] text-slate-400">${f.predicted_pressure.toFixed(0)} hPa</span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400 font-medium">${Math.round(f.confidence_score * 100)}%</span>
+          `;
+          strip.appendChild(card);
+        });
+
+      } catch (err) {
+        console.error('Forecast fetch error:', err);
+      }
+    }
+
+    function renderForecastChart(labels, temps, pressures) {
+      const ctx = document.getElementById('forecastChart').getContext('2d');
+      if (forecastChartInstance) forecastChartInstance.destroy();
+
+      forecastChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Predicted Temperature (°C)',
+              data: temps,
+              borderColor: '#38BDF8',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderWidth: 3,
+              tension: 0.35,
+              yAxisID: 'yTemp',
+              fill: true
+            },
+            {
+              label: 'Pressure (hPa)',
+              data: pressures,
+              borderColor: '#60A5FA',
+              borderWidth: 2,
+              borderDash: [4, 4],
+              tension: 0.35,
+              yAxisID: 'yPres',
+              pointRadius: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#0F172A',
+              titleColor: '#F8FAFC',
+              bodyColor: '#94A3B8',
+              borderColor: '#1E293B',
+              borderWidth: 1
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.2)' },
+              ticks: { color: '#64748B', font: { size: 10 } }
+            },
+            yTemp: {
+              type: 'linear',
+              position: 'left',
+              grid: { color: 'rgba(51, 65, 85, 0.2)' },
+              ticks: { color: '#38BDF8', callback: val => `${val}°C` }
+            },
+            yPres: {
+              type: 'linear',
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#60A5FA', callback: val => `${val}` }
+            }
+          }
+        }
+      });
+    }
+
+    // ================= FETCH SENSOR HISTORY =================
+    async function fetchHistoricalData(range = '24h') {
+      try {
+        const res = await fetch(`/api/sensors/history/?range=${range}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const readings = data.readings || [];
+
+        const labels = readings.map(r => {
+          const dt = new Date(r.timestamp);
+          return range === '24h' 
+            ? dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            : dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        const temps = readings.map(r => r.fused_temp);
+        const hums = readings.map(r => r.sht_humidity);
+        const pressures = readings.map(r => r.bmp_pressure);
+
+        renderHistoryChart(labels, temps, hums, pressures);
+      } catch (err) {
+        console.error('History fetch error:', err);
+      }
+    }
+
+    function renderHistoryChart(labels, temps, hums, pressures) {
+      const ctx = document.getElementById('historyChart').getContext('2d');
+      if (historyChartInstance) historyChartInstance.destroy();
+
+      historyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Temp (°C)',
+              data: temps,
+              borderColor: '#38BDF8',
+              borderWidth: 2,
+              tension: 0.3,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Humidity (%)',
+              data: hums,
+              borderColor: '#34D399',
+              borderWidth: 2,
+              tension: 0.3,
+              yAxisID: 'y1'
+            },
+            {
+              label: 'Pressure (hPa)',
+              data: pressures,
+              borderColor: '#818CF8',
+              borderWidth: 1.5,
+              borderDash: [3, 3],
+              tension: 0.3,
+              yAxisID: 'y2'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              labels: { color: '#94A3B8', boxWidth: 10, font: { size: 10 } }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(51, 65, 85, 0.2)' },
+              ticks: { color: '#64748B', font: { size: 10 }, maxTicksLimit: 12 }
+            },
+            y: {
+              position: 'left',
+              grid: { color: 'rgba(51, 65, 85, 0.2)' },
+              ticks: { color: '#38BDF8', callback: val => `${val}°` }
+            },
+            y1: {
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#34D399', callback: val => `${val}%` }
+            },
+            y2: {
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              display: false
+            }
+          }
+        }
+      });
+    }
+
+    function changeHistoryRange(range) {
+      activeRange = range;
+      ['24h', '7d', '30d'].forEach(r => {
+        const btn = document.getElementById(`btn-hist-${r}`);
+        if (r === range) {
+          btn.className = 'px-3 py-1 rounded-lg bg-cyan-600 text-white font-medium';
+        } else {
+          btn.className = 'px-3 py-1 rounded-lg text-slate-400 hover:text-white font-medium';
+        }
+      });
+      fetchHistoricalData(range);
+    }
+
+    // ================= FUTURE DATE PREDICTOR =================
+    async function queryFutureDateForecast() {
+      const dateVal = document.getElementById('target-date-input').value;
+      if (!dateVal) return;
+
+      try {
+        const res = await fetch(`/api/ai/predict-date/?date=${dateVal}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const p = data.projection;
+
+        document.getElementById('fut-date-label').innerText = p.target_date;
+        document.getElementById('fut-confidence').innerText = `${Math.round(p.confidence_score * 100)}% Confidence`;
+        document.getElementById('fut-temp').innerText = `${p.predicted_temp.toFixed(1)}°C`;
+        document.getElementById('fut-temp-bounds').innerText = `[${p.temp_lower_bound.toFixed(1)}°C - ${p.temp_upper_bound.toFixed(1)}°C]`;
+        document.getElementById('fut-condition').innerText = p.predicted_condition;
+        document.getElementById('fut-rain-prob').innerText = `${p.rain_probability_pct}% Rain`;
+        document.getElementById('fut-context').innerText = p.climatological_context;
+
+      } catch (err) {
+        console.error('Error projecting future date:', err);
+      }
+    }
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check notification permission state
+      if ("Notification" in window && Notification.permission === "granted") {
+        updateMobileAlertButton(true);
+      }
+
+      fetchHardwareStatus();
+      fetchActiveAlerts();
+      fetch24hForecast();
+      fetchHistoricalData('24h');
+      queryFutureDateForecast();
+
+      // Poll every 10 seconds for real-time sensor & alert updates
+      setInterval(() => {
+        fetchHardwareStatus();
+        fetchActiveAlerts();
+      }, 10000);
+
+      // Refresh 24h forecast every 5 minutes
+      setInterval(() => {
+        fetch24hForecast();
+        fetchHistoricalData(activeRange);
+      }, 300000);
+    });
+  </script>
+</body>
+</html>
